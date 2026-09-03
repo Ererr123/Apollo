@@ -1,0 +1,38 @@
+{
+  "name": "apollo",
+  "version": "1.0.0",
+  "description": "A wordbuilder/writer Application",
+  "homepage": "https://github.com/Ererr123/Apollo#readme",
+  "bugs": {
+    "url": "https://github.com/Ererr123/Apollo/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ererr123/Apollo.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node --watch src/app.js",
+    "start": "node src/app.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-async-errors": "^3.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0"
+  }
+}
+
