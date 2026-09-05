@@ -1,0 +1,62 @@
+// v0 schema: User, World, Document.
+// Collaborator, Map, MapPin, TimelineEvent, and Revision get added in later
+// versions (see README build order) - keeping the schema minimal for now
+// so each stage is a real, working migration rather than one big bang.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+
+  worlds World[]
+
+  @@map("users")
+}
+
+model World {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([ownerId])
+  @@map("worlds")
+}
+
+enum DocType {
+  chapter
+  lore
+  character_bio
+  note
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  worldId    String
+  world      World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  title      String
+  content    String   @default("")
+  docType    DocType  @default(note)
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([worldId])
+  @@map("documents")
+}
