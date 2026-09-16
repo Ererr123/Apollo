@@ -5,6 +5,7 @@ const authorizeWorldOwner = require("../middleware/authorizeWorldOwner");
 
 const router = express.Router();
 
+// Zod schemas for request validation
 const createWorldSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
@@ -22,6 +23,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  // Create the world and set the ownerId to the authenticated user's ID
   const world = await prisma.world.create({
     data: {
       title: parsed.data.title,
