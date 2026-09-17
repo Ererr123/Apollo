@@ -37,9 +37,10 @@ async function authorizeDocumentAccess(req, res, next) {
   if (!document) {
     return res.status(404).json({ error: "Document not found" });
   }
-  if (!req.user || req.user.id !== document.world.userId) {
+  if (!req.user || req.user.id !== document.world.ownerId) {
     return res.status(403).json({ error: "Access denied" });
   }
+  req.document = document;   // <-- this line was missing
   next();
 }
 

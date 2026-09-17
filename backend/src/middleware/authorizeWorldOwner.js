@@ -4,7 +4,7 @@ const prisma = require("../lib/prisma");
 // Middleware to authorize the owner of a world
 async function authorizeWorldOwner(req, res, next) {
     const worldId = req.params.worldId || req.params.id;
-    const world = await prisma.world.findUnique({wohere: { id: worldId }});
+    const world = await prisma.world.findUnique({where: { id: worldId }});
 
     // Check if the world exists and if the user is the owner
     if (!world) {

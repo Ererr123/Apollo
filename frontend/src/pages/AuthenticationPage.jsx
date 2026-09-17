@@ -35,7 +35,7 @@ export default function AuthPage({onAuthed}) {
             
             <form onSubmit={handleSubmit} className="card">
                 <h1>Apollo</h1>
-                <p className="subtitle">Build a world. Write it down.</p>
+                <p className="subtitle">Build a world. Let it grow.</p>
                 
                 <h2>{mode === 'login' ? 'Log in' : 'Create an account'}</h2>
 
