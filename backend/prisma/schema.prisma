@@ -51,7 +51,7 @@ model Document {
   worldId    String
   world      World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
   title      String
-  content    String   @default("")
+  content    Json   @default("{}")
   docType    DocType  @default(note)
   orderIndex Int      @default(0)
   createdAt  DateTime @default(now())

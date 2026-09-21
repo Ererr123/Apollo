@@ -11,14 +11,14 @@ const standalone = express.Router();
 
 const createDocumentSchema = z.object({
   title: z.string().min(1),
-  content: z.string().optional(),
+  content: z.any().optional(),
   docType: z.enum(["chapter", "lore", "character_bio", "note"]).optional(),
   orderIndex: z.number().int().optional(),
 });
 
 const updateDocumentSchema = z.object({
   title: z.string().min(1).optional(),
-  content: z.string().optional(),
+  content: z.any().optional(),
   docType: z.enum(["chapter", "lore", "character_bio", "note"]).optional(),
   orderIndex: z.number().int().optional(),
 });

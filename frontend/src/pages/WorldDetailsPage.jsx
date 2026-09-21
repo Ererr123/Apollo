@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {client} from "../api/client.js";
 import "./WorldDetailsPage.css";
+import TextEditor from "../components/textEditor.jsx";
 
 const DOC_TYPES = ["chapter", "lore", "character_bio", "note"];
 
@@ -160,10 +161,9 @@ export default function WorldDetailPage({world, onBack}) {
                   </option>
                 ))}
               </select>
-              <textarea
-                className="doc-content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
+              <TextEditor
+                content={content}
+                onChange={(newContent) => setContent(newContent)}
               />
 
               <div className="editor-actions">
