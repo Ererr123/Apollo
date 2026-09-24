@@ -1,13 +1,16 @@
-import {useEditor, EditorContent} from "@tiptap/react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-import {TextStyle} from "@tiptap/extension-text-style";
+import { TextStyle, LineHeight } from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
 import Color from "@tiptap/extension-color";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import "./textEditor.css"; 
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import "./textEditor.css";
 
 const FONT_FAMILIES = [
   {label: "Default", value: ""},
@@ -16,10 +19,71 @@ const FONT_FAMILIES = [
   {label: "Mono", value: "'Courier New', monospace"},
 ];
 
+const LINE_HEIGHTS = [
+  {label: "Single", value: "1"},
+  {label: "1.15", value: "1.15"},
+  {label: "1.5", value: "1.5"},
+  {label: "Double", value: "2"},
+];
 
+// Okay, so Line Spacing wasn't wporking so I constulted Claude. 
+// It suggested creating a custom extension for line spacing, which is what LineSpacing does.
+const LineSpacing = Extension.create({
+  name: "lineSpacing",
+  addOptions() {
+    return {
+      types: ["paragraph", "heading"],
+      defaultLineHeight: "1",
+    };
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          lineHeight: {
+            default: this.options.defaultLineHeight,
+            renderHTML: (attributes) => {
+              if (!attributes.lineHeight) return {};
+              return { style: `line-height: ${attributes.lineHeight}` };
+            },
+            parseHTML: (element) => element.style.lineHeight || null,
+          },
+        },
+      },
+    ];
+  },
+  addCommands() {
+    return {
+      setLineSpacing:
+        (lineHeight) =>
+        ({ commands }) =>
+          this.options.types.every((type) =>
+            commands.updateAttributes(type, { lineHeight })
+          ),
+    };
+  },
+});
 
-// `content` is a Tiptap/ProseMirror JSON document (an object), not a
-export default function TextEditor({content, onChange, editable = true}) {
+//fix for the document not updating correctly when the content changes externally
+export default function TextEditor({
+  content,
+  onChange,
+  editable = true,
+  documentKey,
+}) {
+  return (
+    <EditorInstance
+      content={content}
+      onChange={onChange}
+      editable={editable}
+      documentKey={documentKey}
+    />
+  )
+}
+
+// EditorInstance is a wrapper around the Tiptap editor that handles initialization and updates.
+function EditorInstance({content, onChange, editable = true, documentKey}) {
   const editor = useEditor({
       extensions: [
         StarterKit,
@@ -30,6 +94,10 @@ export default function TextEditor({content, onChange, editable = true}) {
         TextAlign.configure({ types: ["heading", "paragraph"] }),
         Link.configure({ openOnClick: false }),
         Placeholder.configure({ placeholder: "" }),
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        LineHeight.configure({ types: ["heading", "paragraph"], defaultLineHeight: "1" }), 
+        LineSpacing,
       ],
       content: content || "",
       editable,
@@ -103,6 +171,20 @@ function Toolbar({ editor }) {
             </option>
           ))}
         </select>
+
+        <select
+          title="Line & Paragraph Spacing"
+          onChange={(e) =>
+            editor.chain().focus().setLineHeight(e.target.value).run()
+          }
+          defaultValue="1"
+        >
+          {LINE_HEIGHTS.map((l) => (
+            <option key={l.value} value={l.value}>
+              {l.label}
+            </option>
+          ))}
+        </select>
       </div>
           
       <div className="toolbar-group">
@@ -172,10 +254,10 @@ function Toolbar({ editor }) {
           title="Numbered list"
         />
         <ToolbarButton
-          active={isActive("blockquote")}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          label="❝"
-          title="Quote"
+          active={isActive("taskList")}
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          label="☑"
+          title="Checklist"
         />
         <ToolbarButton
           active={isActive("link")}

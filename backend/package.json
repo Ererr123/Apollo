@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
+    "@tiptap/extension-task-item": "^3.31.3",
+    "@tiptap/extension-task-list": "^3.31.3",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -35,4 +37,3 @@
     "prisma": "^5.20.0"
   }
 }
-
