@@ -162,9 +162,11 @@ export default function WorldDetailPage({world, onBack}) {
                 ))}
               </select>
               <TextEditor
+                documentKey={activeDoc.id}
                 content={content}
                 onChange={(newContent) => setContent(newContent)}
               />
+              {console.log("documentKey:", activeDoc.id, "content:", content)}  
 
               <div className="editor-actions">
                 <button type="button" onClick={handleSave}>
