@@ -165,6 +165,11 @@ export default function WorldDetailPage({world, onBack}) {
                 documentKey={activeDoc.id}
                 content={content}
                 onChange={(newContent) => setContent(newContent)}
+                onSave={handleSave}
+                onDelete={() => handleDeleteDocument(activeDoc.id)}
+                onTitleChange={(newTitle) => setTitle(newTitle)}
+                onDocTypeChange={(newDocType) => setDocType(newDocType)}
+                onContentChange={(newContent) => setContent(newContent)}
               />
               {console.log("documentKey:", activeDoc.id, "content:", content)}  
 

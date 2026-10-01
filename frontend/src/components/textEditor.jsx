@@ -10,6 +10,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+import { useEffect } from "react";
 import "./textEditor.css";
 
 const FONT_FAMILIES = [
@@ -85,35 +86,45 @@ export default function TextEditor({
 // EditorInstance is a wrapper around the Tiptap editor that handles initialization and updates.
 function EditorInstance({content, onChange, editable = true, documentKey}) {
   const editor = useEditor({
-      extensions: [
-        StarterKit,
-        Underline,
-        TextStyle,
-        FontFamily,
-        Color,
-        TextAlign.configure({ types: ["heading", "paragraph"] }),
-        Link.configure({ openOnClick: false }),
-        Placeholder.configure({ placeholder: "" }),
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        LineHeight.configure({ types: ["heading", "paragraph"], defaultLineHeight: "1" }), 
-        LineSpacing,
-      ],
-      content: content || "",
-      editable,
-      onUpdate: ({ editor }) => {
-        onChange?.(editor.getJSON());
-      },
-    });
+    extensions: [
+      StarterKit,
+      Underline,
+      TextStyle,
+      FontFamily,
+      Color,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "" }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      LineHeight.configure({
+        types: ["heading", "paragraph"],
+        defaultLineHeight: "1"
+      }),
+      LineSpacing,
+    ],
+    content: content || "",
+    editable,
+    onUpdate: ({ editor }) => {
+      onChange?.(editor.getJSON());
+    },
+  });
 
-    if (!editor) return null;
-    
-    return (
-        <div className="text-editor">
-          <Toolbar editor={editor} />
-          <EditorContent editor={editor} className="text-editor-content" />
-        </div>
-    );
+  // Update the editor content when the documentKey changes (this was the issue with the frontend bug)
+  useEffect(() => {
+    if (!editor) return;
+
+    editor.commands.setContent(content || "", false);
+  }, [editor, documentKey]);
+
+  if (!editor) return null;
+
+  return (
+    <div className="text-editor">
+      <Toolbar editor={editor} />
+      <EditorContent editor={editor} className="text-editor-content" />
+    </div>
+  );
 }
 
 // Toolbar component for the text editor
