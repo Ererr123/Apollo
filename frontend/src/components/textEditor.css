@@ -1,214 +1,409 @@
+/* ==========================================================================
+   Google Docs–style editing view
+   Override --te-canvas-max-height on .text-editor (e.g. `none`, or `100%`
+   with a fixed host height) to control how tall the scrolling canvas is.
+   ========================================================================== */
+
 .text-editor {
-  border: 1px solid rgba(18, 22, 26, 0.12);
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: #ffffff;
+  --te-ui-font: "Google Sans", Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --te-canvas-bg: #f9fbfd;
+  --te-canvas-max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: transparent;
+}
+
+/* ---------- Toolbar ---------- */
+
+/* the shell keeps the pill floating on the canvas color while it sticks */
+.toolbar-shell {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 8px 16px;
+  background-color: var(--te-canvas-bg);
 }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(18, 22, 26, 0.1);
-  background-color: #faf9f6;
+  gap: 2px 0;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-radius: 24px;
+  background-color: #edf2fa;
+  color: #444746;
+  font-family: var(--te-ui-font);
+  font-size: 14px;
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-right: 12px;
-  border-right: 1px solid rgba(18, 22, 26, 0.08);
+  flex: none; /* groups wrap as a unit */
+  gap: 2px;
+  padding: 0 4px;
 }
 
-.toolbar-group:last-child {
-  border-right: none;
-}
-
-.toolbar select {
-  padding: 4px 6px;
-  border: 1px solid rgba(18, 22, 26, 0.15);
-  border-radius: 4px;
-  background-color: #ffffff;
-  font-size: 0.85rem;
+/* thin vertical divider between groups */
+.toolbar-group + .toolbar-group::before {
+  content: "";
+  width: 1px;
+  height: 20px;
+  margin-right: 6px;
+  background-color: #c4c7c5;
 }
 
 .toolbar-btn {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid transparent;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
   border-radius: 4px;
   background: transparent;
-  font-size: 0.85rem;
-  font-weight: 600;
+  color: #444746;
   cursor: pointer;
-  color: #12161a;
+  transition: background-color 0.1s;
 }
 
 .toolbar-btn:hover {
-  background-color: rgba(18, 22, 26, 0.06);
+  background-color: rgba(60, 64, 67, 0.08);
 }
 
 .toolbar-btn.active {
-  background-color: rgba(198, 138, 60, 0.18);
-  border-color: rgba(198, 138, 60, 0.4);
+  background-color: #d3e3fd;
 }
 
-.toolbar input[type="color"] {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid rgba(18, 22, 26, 0.15);
+.toolbar-btn.active:hover {
+  background-color: #c6d9f9;
+}
+
+.toolbar-btn:disabled {
+  background: transparent;
+  color: rgba(68, 71, 70, 0.38);
+  cursor: default;
+}
+
+.toolbar-btn:focus-visible,
+.toolbar-btn:has(input:focus-visible),
+.toolbar-select select:focus-visible {
+  outline: 2px solid #0b57d0;
+  outline-offset: -2px;
+}
+
+/* Dropdowns: borderless, compact, with hover background and a chevron */
+.toolbar-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   border-radius: 4px;
+  transition: background-color 0.1s;
+}
+
+.toolbar-select:hover,
+.toolbar-select:focus-within {
+  background-color: rgba(60, 64, 67, 0.08);
+}
+
+.toolbar-select select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  height: 32px;
+  margin: 0;
+  padding: 0 22px 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 
-/* page canvas: a neutral backdrop the "sheet" sits on, same idea as
-   Google Docs' gray surrounding area behind the white page */
-.page-canvas {
-  background-color: #e9e4d8;
-  padding: 40px 24px;
-  display: flex;
-  justify-content: center;
-  max-height: 72vh;
-  overflow-y: auto;
+.toolbar-select select option {
+  background-color: #ffffff;
+  color: #202124;
 }
 
-/* make the page look like aged parchment with subtle visual cues for depth */
-.text-editor-content {
-  width: 100%;
-  max-width: 700px;
-  min-height: 900px;
-  background-color: #f1e6c8;
-  background-image: radial-gradient(
-    ellipse at center,
-    rgba(241, 230, 200, 0) 55%,
-    rgba(107, 79, 42, 0.14) 100%
-  );
-  box-shadow:
-    0 1px 2px rgba(43, 30, 12, 0.25),
-    0 10px 28px rgba(43, 30, 12, 0.18);
-  padding: 72px 68px;
-  position: relative;
+.toolbar-select.has-icon select {
+  padding-left: 30px;
 }
 
-/* A thin inner border */
-.text-editor-content::before {
-  content: "";
+.toolbar-select .lead-icon {
   position: absolute;
-  inset: 18px;
-  border: 1px solid rgba(107, 79, 42, 0.15);
+  left: 6px;
   pointer-events: none;
 }
 
-@media (max-width: 800px) {
-  .text-editor-content {
-    max-width: 100%;
-    padding: 36px 28px;
-    box-shadow: none;
-  }
-  .page-canvas {
-    padding: 16px 12px;
-  }
+.toolbar-select .chevron {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
+/* Text color: "A" with a color bar; the real color input is invisible on top */
+.color-btn svg {
+  margin-bottom: 1px;
+}
+
+.color-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  width: 16px;
+  height: 3px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+}
+
+.color-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ---------- Page canvas ---------- */
+
+.page-canvas {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-sizing: border-box;
+  max-height: var(--te-canvas-max-height);
+  padding: 16px 24px 48px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: var(--te-canvas-bg);
+}
+
+/* ---------- The page: 8.5in wide, 1in margins, 11in tall ---------- */
+
+.text-editor-content {
+  flex: 0 1 816px;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 1056px;
+  padding: 96px;
+  background-color: #ffffff;
+  box-shadow:
+    0 0 0 1px #dadce0,
+    0 1px 3px rgba(60, 64, 67, 0.15);
+}
+
+/* ---------- Typography (Docs defaults: Arial 11pt, 1.15) ---------- */
+
 .text-editor-content .ProseMirror {
-  outline: none;
-  min-height: 760px;
-  font-family: "Spectral", Georgia, serif;
-  font-size: 1.05rem;
-  line-height: 1.7;
-  color: #2c2013;
   position: relative;
+  min-height: 864px; /* page height minus the 1in top/bottom padding */
+  outline: none;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.15;
+  color: #000000;
+  caret-color: #000000;
+  overflow-wrap: break-word;
+}
+
+.text-editor-content .ProseMirror:focus,
+.text-editor-content .ProseMirror:focus-visible {
+  outline: none;
+}
+
+.text-editor-content .ProseMirror:not(.ProseMirror-hideselection) ::selection,
+.text-editor-content .ProseMirror:not(.ProseMirror-hideselection)::selection {
+  background-color: #b4d5fe;
+}
+
+.text-editor-content .ProseMirror p {
+  margin: 0;
 }
 
 .text-editor-content .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: rgba(44, 32, 19, 0.4);
-  font-style: italic;
+  color: #9aa0a6;
   float: left;
   pointer-events: none;
   height: 0;
 }
 
+.text-editor-content .ProseMirror h1,
+.text-editor-content .ProseMirror h2,
+.text-editor-content .ProseMirror h3 {
+  font-weight: 400;
+  color: #000000;
+}
+
 .text-editor-content .ProseMirror h1 {
-  font-size: 1.9rem;
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-  color: #241a0d;
+  font-size: 20pt;
+  margin: 20pt 0 6pt;
 }
 
 .text-editor-content .ProseMirror h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-  color: #241a0d;
+  font-size: 16pt;
+  margin: 18pt 0 6pt;
 }
 
 .text-editor-content .ProseMirror h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-  color: #241a0d;
+  font-size: 14pt;
+  margin: 16pt 0 4pt;
+}
+
+.text-editor-content .ProseMirror h1:first-child,
+.text-editor-content .ProseMirror h2:first-child,
+.text-editor-content .ProseMirror h3:first-child {
+  margin-top: 0;
 }
 
 .text-editor-content .ProseMirror blockquote {
-  border-left: 3px solid #c68a3c;
-  margin: 0.6em 0;
-  padding-left: 1em;
-  color: #5a4a30;
-  font-style: italic;
+  margin: 0 0 0 0.5in;
+  padding-left: 12px;
+  border-left: 3px solid #dadce0;
+  color: #5f6368;
+}
+
+.text-editor-content .ProseMirror a {
+  color: #1155cc;
+  text-decoration: underline;
 }
 
 .text-editor-content .ProseMirror ul,
 .text-editor-content .ProseMirror ol {
-  padding-left: 1.4em;
+  margin: 0;
+  padding-left: 36pt; /* Docs: 0.5in list indent */
 }
 
-.text-editor-content .ProseMirror a {
-  color: #a3651d;
-  text-decoration: underline;
+.text-editor-content .ProseMirror ol ol {
+  list-style-type: lower-alpha;
 }
 
+.text-editor-content .ProseMirror ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.text-editor-content .ProseMirror code {
+  padding: 1px 3px;
+  border-radius: 3px;
+  background-color: #f1f3f4;
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 0.9em;
+}
+
+.text-editor-content .ProseMirror pre {
+  margin: 8px 0;
+  padding: 12px 16px;
+  border-radius: 4px;
+  background-color: #f1f3f4;
+  overflow-x: auto;
+}
+
+.text-editor-content .ProseMirror pre code {
+  padding: 0;
+  background: none;
+}
+
+.text-editor-content .ProseMirror hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid #dadce0;
+}
+
+/* Checklists */
 .text-editor-content .ProseMirror ul[data-type="taskList"] {
   list-style: none;
-  padding-left: 0.2em;
+  padding-left: 0;
 }
 
 .text-editor-content .ProseMirror ul[data-type="taskList"] li {
   display: flex;
   align-items: flex-start;
-  gap: 0.5em;
+  gap: 8px;
 }
 
 .text-editor-content .ProseMirror ul[data-type="taskList"] li > label {
-  margin-top: 0.3em;
+  flex: none;
+  margin-top: 1px;
   user-select: none;
 }
 
+.text-editor-content .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #1a73e8;
+  cursor: pointer;
+}
+
+.text-editor-content .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
 .text-editor-content .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
-  color: rgba(44, 32, 19, 0.45);
+  color: #80868b;
   text-decoration: line-through;
 }
 
-/* Read-only ("view") mode */
+/* ---------- Small screens: the page shrinks to fit, no sideways scroll ---------- */
+
+@media (max-width: 800px) {
+  .toolbar-shell {
+    padding: 8px;
+  }
+
+  .page-canvas {
+    padding: 8px 8px 24px;
+  }
+
+  .text-editor-content {
+    flex-basis: 100%;
+    min-height: 70vh;
+    padding: 40px 24px;
+  }
+
+  .text-editor-content .ProseMirror {
+    min-height: calc(70vh - 80px);
+  }
+}
+
+/* ---------- Read-only ("view") mode: plain content, no canvas or toolbar ---------- */
+
+.text-editor.read-only .toolbar-shell {
+  display: none;
+}
+
 .text-editor.read-only .page-canvas {
-  background-color: transparent;
-  padding: 0;
+  display: block;
   max-height: none;
+  padding: 0;
+  overflow: visible;
+  background-color: transparent;
 }
 
 .text-editor.read-only .text-editor-content {
-  box-shadow: none;
-  max-width: 100%;
   min-height: 0;
   padding: 12px 8px;
-  background-image: none;
+  background-color: transparent;
+  box-shadow: none;
 }
 
-.text-editor.read-only .text-editor-content::before {
-  display: none;
+.text-editor.read-only .text-editor-content .ProseMirror {
+  min-height: 0;
 }
