@@ -79,10 +79,10 @@
   text-align: left;
 }
 
-/* Header */
+/* Header (wider than before so the editor can show a full 8.5in page) */
 .world-detail-page .page-header {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1280px;
   border-bottom: 1px solid rgba(18, 22, 26, 0.12);
   padding-bottom: 16px;
   margin-bottom: 24px;
@@ -106,7 +106,7 @@
 /* Two-Column Layout Container */
 .world-detail-page .world-detail-container {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1280px;
   display: flex;
   gap: 24px;
   align-items: flex-start;
@@ -114,17 +114,24 @@
 
 /* Sidebar */
 .world-detail-page .sidebar {
-  width: 300px;
+  position: relative;
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
+/* lifts the sidebar (and its open tab) above the blur backdrop */
+.world-detail-page .sidebar.menu-open {
+  z-index: 30;
+}
+
 /* Quick Create Card */
 .world-detail-page .create-card {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 8px;
   background-color: var(--card-bg);
   padding: 12px;
@@ -134,7 +141,7 @@
 }
 
 .world-detail-page .create-card input {
-  flex: 1;
+  flex: 1 1 100%;
   padding: 8px 12px;
   border: 1px solid rgba(18, 22, 26, 0.2);
   border-radius: 6px;
@@ -148,7 +155,24 @@
   border-color: var(--bronze);
 }
 
+.world-detail-page .create-card select {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(18, 22, 26, 0.2);
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: var(--ink-black);
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.world-detail-page .create-card select:focus {
+  border-color: var(--bronze);
+}
+
 .world-detail-page .create-card button {
+  flex: none;
   padding: 8px 14px;
   background-color: var(--ink-black);
   color: #ffffff;
@@ -161,6 +185,163 @@
 
 .world-detail-page .create-card button:hover {
   background-color: #242c33;
+}
+
+/* Document type groups (collapsible dropdowns) */
+.world-detail-page .type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.world-detail-page .type-group {
+  position: relative;
+}
+
+.world-detail-page .type-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background-color: var(--card-bg);
+  border: 1px solid rgba(18, 22, 26, 0.08);
+  border-radius: 8px;
+  color: var(--ink-black);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.world-detail-page .type-toggle:hover {
+  border-color: rgba(198, 138, 60, 0.3);
+}
+
+.world-detail-page .type-toggle:focus-visible {
+  outline: 2px solid var(--bronze);
+  outline-offset: 2px;
+}
+
+.world-detail-page .type-group.open .type-toggle {
+  border-color: var(--bronze);
+  background-color: rgba(198, 138, 60, 0.05);
+}
+
+/* the open document lives in this group */
+.world-detail-page .type-group.has-active .type-toggle {
+  box-shadow: inset 3px 0 0 var(--bronze);
+}
+
+.world-detail-page .type-name {
+  flex: 1;
+}
+
+.world-detail-page .type-count {
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: rgba(198, 138, 60, 0.14);
+  color: var(--bronze);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.world-detail-page .type-chevron {
+  flex: none;
+  color: rgba(18, 22, 26, 0.5);
+  transition: transform 0.2s ease;
+}
+
+/* points toward the tab once it's open */
+.world-detail-page .type-group.open .type-chevron {
+  transform: rotate(-90deg);
+}
+
+/* The "tab": opens beside the sidebar, over the (blurred) editor */
+.world-detail-page .type-panel {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 14px);
+  z-index: 40;
+  width: 340px;
+  padding: 14px;
+  background-color: var(--card-bg);
+  border: 1px solid rgba(18, 22, 26, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(18, 22, 26, 0.22);
+  animation: wd-panel-in 0.16s ease-out;
+}
+
+/* little notch pointing back at the group's header */
+.world-detail-page .type-panel::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--card-bg);
+  border-left: 1px solid rgba(18, 22, 26, 0.1);
+  border-bottom: 1px solid rgba(18, 22, 26, 0.1);
+  transform: rotate(45deg);
+}
+
+.world-detail-page .type-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.world-detail-page .type-panel-header h2 {
+  margin: 0;
+  color: var(--bronze);
+  font-family: 'Cinzel', serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.world-detail-page .type-panel-body {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+}
+
+.world-detail-page .type-panel .muted {
+  margin: 4px 0;
+}
+
+/* Soft blur behind the open tab */
+.world-detail-page .menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background-color: rgba(234, 230, 223, 0.4);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: wd-backdrop-in 0.16s ease-out;
+}
+
+@keyframes wd-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+@keyframes wd-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-detail-page .type-panel,
+  .world-detail-page .menu-backdrop {
+    animation: none;
+  }
 }
 
 /* Document List */
@@ -181,6 +362,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -199,6 +381,21 @@
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+
+.world-detail-page .doc-open {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ink-black);
+  font: inherit;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .world-detail-page .doc-type {
@@ -226,6 +423,7 @@
 /* Editor */
 .world-detail-page .document-editor {
   flex: 1;
+  min-width: 0;
   background-color: var(--card-bg);
   border: 1px solid rgba(18, 22, 26, 0.08);
   border-radius: 12px;
@@ -252,7 +450,10 @@
   border-bottom-color: var(--bronze);
 }
 
-.world-detail-page .document-editor select {
+/* Scoped to the document-type select only. This used to be
+   `.document-editor select`, which also restyled the editor toolbar's
+   dropdowns (fixed width, border, padding). */
+.world-detail-page .doc-type-select {
   width: 180px;
   padding: 8px 10px;
   border: 1px solid rgba(18, 22, 26, 0.2);
@@ -328,7 +529,7 @@
 
 .world-detail-page .error {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1280px;
   background-color: rgba(163, 38, 38, 0.08);
   border-left: 4px solid var(--error-red);
   color: var(--error-red);
@@ -336,4 +537,39 @@
   border-radius: 6px;
   font-size: 0.9rem;
   margin-bottom: 16px;
+}
+
+/* Narrow screens: stack the sidebar over the editor; the tab drops below its header */
+@media (max-width: 800px) {
+  .world-detail-page {
+    padding: 20px 12px;
+  }
+
+  .world-detail-page .world-detail-container {
+    flex-direction: column;
+  }
+
+  .world-detail-page .sidebar,
+  .world-detail-page .document-editor {
+    width: 100%;
+  }
+
+  .world-detail-page .document-editor {
+    padding: 16px;
+  }
+
+  .world-detail-page .type-panel {
+    top: calc(100% + 8px);
+    right: 0;
+    left: 0;
+    width: auto;
+  }
+
+  .world-detail-page .type-panel::before {
+    display: none;
+  }
+
+  .world-detail-page .type-group.open .type-chevron {
+    transform: rotate(180deg);
+  }
 }
