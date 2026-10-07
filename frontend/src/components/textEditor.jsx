@@ -11,13 +11,36 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { useEffect } from "react";
+import FontSize from '@tiptap/extension-text-style';
 import "./textEditor.css";
 
 const FONT_FAMILIES = [
-  {label: "Default", value: ""},
+  {label: "Arial", value: "Arial, sans-serif"},
   {label: "Serif", value: "Georgia, serif"},
   {label: "Sans", value: "Inter, Arial, sans-serif"},
   {label: "Mono", value: "'Courier New', monospace"},
+  {label: "Courier", value: "'Courier New', monospace"},
+  {label: "Verdana", value: "Verdana, sans-serif"},
+  {label: "Tahoma", value: "Tahoma, sans-serif"},
+  {label: "Trebuchet", value: "Trebuchet MS, sans-serif"},
+  {label: "Impact", value: "Impact, Charcoal, sans-serif"},
+  {label: "Comic Sans", value: "'Comic Sans MS', cursive, sans-serif"},
+  {label: "Georgia", value: "Georgia, serif"},
+  {label: "Palatino", value: "'Palatino Linotype', 'Book Antiqua', Palatino, serif"},
+  {label: "Garamond", value: "Garamond, serif"},
+  {label: "Bookman", value: "'Bookman Old Style', serif"},
+  {label: "Candara", value: "Candara, sans-serif"},
+  {label: "Calibri", value: "Calibri, sans-serif"},
+  {label: "Futura", value: "Futura, sans-serif"},
+  {label: "Helvetica", value: "Helvetica, sans-serif"},
+  {label: "Gill Sans", value: "Gill Sans, sans-serif"},
+  {label: "Optima", value: "Optima, sans-serif"},
+  {label: "Franklin Gothic", value: "'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif"},
+  {label: "Century Gothic", value: "'Century Gothic', sans-serif"},
+  {label: "Lucida Sans", value: "'Lucida Sans', 'Lucida Grande', sans-serif"},
+  {label: "Trebuchet MS", value: "'Trebuchet MS', sans-serif"},
+  {label: "Lucida Console", value: "'Lucida Console', Monaco, monospace"},
+  {label: "Times New Roman", value: "'Times New Roman', Times, serif"}
 ];
 
 const LINE_HEIGHTS = [
@@ -28,7 +51,6 @@ const LINE_HEIGHTS = [
 ];
 
 // Used by both line-height extensions below and by the toolbar fallback.
-// Google Docs' own default is "1.15"; it's "1" here to keep existing behavior.
 const DEFAULT_LINE_HEIGHT = "1";
 
 const DEFAULT_TEXT_COLOR = "#000000";
@@ -98,6 +120,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
       Underline,
       TextStyle,
       FontFamily,
+      FontSize,
       Color,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Link.configure({ openOnClick: false }),
@@ -149,6 +172,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
 const ICONS = {
   undo: (<><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>),
   redo: (<><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></>),
+  textSize: (<path d="M6 4h12v16H6z" />),
   bold: (<path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" />),
   italic: (<><path d="M19 4h-9" /><path d="M14 20H5" /><path d="M15 4 9 20" /></>),
   underline: (<><path d="M6 4v6a6 6 0 0 0 12 0V4" /><path d="M4 20h16" /></>),
@@ -207,6 +231,7 @@ function Toolbar({ editor }) {
         canRedo: editor.can().redo(),
         heading: [1, 2, 3].find((level) => editor.isActive("heading", { level })) ?? 0,
         fontFamily: textStyle.fontFamily || "",
+        textSize: textStyle.textSize || "",
         color: textStyle.color || "",
         lineHeight: block.lineHeight || DEFAULT_LINE_HEIGHT,
         align: block.textAlign || "left",
@@ -248,6 +273,12 @@ function Toolbar({ editor }) {
   function changeLineSpacing(e) {
     // setLineSpacing writes the paragraph/heading attribute (see LineSpacing above).
     editor.chain().focus().setLineSpacing(e.target.value).run();
+  }
+
+  function changeTextSize(e) {
+    const value = e.target.value;
+    if (!value) editor.chain().focus().unsetTextSize().run();
+    else editor.chain().focus().setTextSize(value).run();
   }
 
   // Selects must always have a matching <option>; add one for values that
