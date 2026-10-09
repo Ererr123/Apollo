@@ -202,31 +202,16 @@ const InlineImage = Node.create({
   },
 });
 
-// File -> data URL. Big photos are scaled down first so the saved document
-// doesn't balloon; GIF/SVG are left alone (re-encoding would break them).
-function readImageFile(file, maxDimension = MAX_IMAGE_DIMENSION) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return resolve(dataUrl);
+//Upload image file to the server and return the URL instead of using a local data URL
+async function uploadImageFile(file, maxDimension = MAX_IMAGE_DIMENSION) {
+  // Optional: compress client-side first to save bandwidth and storage costs
+  const compressedFile = await compressImageIfNeeded(file, maxDimension);
+  
+  const formData = new FormData();
+  formData.append("image", compressedFile);
 
-      const img = new window.Image();
-      img.onerror = () => resolve(dataUrl);
-      img.onload = () => {
-        const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
-        if (scale === 1) return resolve(dataUrl);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.naturalWidth * scale);
-        canvas.height = Math.round(img.naturalHeight * scale);
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL(file.type === "image/jpeg" ? "image/jpeg" : "image/png", 0.85));
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-  });
+  const response = await client.uploadImage(formData); // Implement this in your API client
+  return response.url; // Returns e.g. "/uploads/xyz.png" or a CDN URL
 }
 
 // Insert image files at `pos` (drops) or at the cursor (toolbar / paste).
@@ -234,13 +219,22 @@ async function insertImageFiles(editor, files, pos = null) {
   let at = pos;
   for (const file of files) {
     try {
-      const src = await readImageFile(file);
-      const content = { type: "image", attrs: { src, alt: file.name.replace(/\.[^.]+$/, "") } };
+      const formData = new FormData();
+      formData.append("image", file);
+
+      // Upload to your server endpoint
+      const { url } = await client.uploadImage(formData);
+
+      const content = { 
+        type: "image", 
+        attrs: { src: url, alt: file.name.replace(/\.[^.]+$/, "") } 
+      };
+      
       const chain = editor.chain().focus();
       (at != null ? chain.insertContentAt(at, content) : chain.insertContent(content)).run();
-      at = null; // any further files follow the cursor
+      at = null; 
     } catch (err) {
-      console.error("Could not insert image:", err);
+      console.error("Could not upload and insert image:", err);
     }
   }
 }

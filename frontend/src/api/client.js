@@ -41,7 +41,16 @@ async function request(path, { method = "GET", body } = {}) {
     // Return the parsed JSON data from the response.
     return data;
 }
-
+async function uploadImage(formData) {
+  const response = await fetch(`${API_BASE}/api/upload`, {
+    method: "POST",
+    body: formData, // Note: Do not manually set Content-Type header when using FormData
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload image");
+  }
+  return await response.json(); // Expected format: { url: "http://..." }
+}
 // Export an object with methods for each API endpoint, using the request function to make the calls.
 export const client = {
     // Auth endpoints
