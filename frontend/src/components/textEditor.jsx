@@ -65,6 +65,7 @@ const MAX_FONT_SIZE = 400;
 const DEFAULT_LINE_HEIGHT = "1";
 
 const DEFAULT_TEXT_COLOR = "#000000";
+const DEFAULT_HIGHLIGHT_COLOR = "#ffff00";
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 const LAYOUT_KEY = "textEditor.layout"; // remembers pages / pageless per browser
@@ -111,6 +112,32 @@ const ParagraphSpacing = Extension.create({
           this.options.types.every((type) =>
             commands.updateAttributes(type, spacing)
           ),
+    };
+  },
+});
+
+// Custom Page Break node to support actual page breaks in page mode
+const PageBreak = Node.create({
+  name: "pageBreak",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  parseHTML() {
+    return [{ tag: "div.page-break" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { class: "page-break" })];
+  },
+
+  addCommands() {
+    return {
+      setPageBreak:
+        () =>
+        ({ commands }) =>
+          commands.insertContent({ type: this.name }),
     };
   },
 });
@@ -309,15 +336,13 @@ export default function TextEditor({
   )
 }
 
-// EditorInstance is a wrapper around the Tiptap editor that handles initialization and updates.
+// EditorInstance component handles the actual editor logic and rendering.
 function EditorInstance({content, onChange, editable = true, documentKey}) {
-  const editorRef = useRef(null); // lets the paste/drop handlers reach the editor
-  const [layout, setLayout] = useState(readStoredLayout); // "pages" | "pageless"
+  const editorRef = useRef(null);
+  const [layout, setLayout] = useState(readStoredLayout);
 
   const editor = useEditor({
     extensions: [
-      // StarterKit 3 already bundles Link and Underline; they're added (and
-      // configured) below, so turn the built-in copies off to avoid duplicates.
       StarterKit.configure({ link: false, underline: false }),
       Underline,
       Highlight.configure({ multicolor: true }),
@@ -336,12 +361,12 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
       }),
       LineSpacing,
       ParagraphSpacing,
+      PageBreak,
       InlineImage,
     ],
     content: content || "",
     editable,
     editorProps: {
-      // Pasted screenshots / dropped files become images.
       handlePaste: (view, event) => {
         const files = imageFilesFrom(event.clipboardData?.files);
         if (!files.length) return false;
@@ -350,7 +375,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
         return true;
       },
       handleDrop: (view, event, slice, moved) => {
-        if (moved) return false; // moving existing content around
+        if (moved) return false;
         const files = imageFilesFrom(event.dataTransfer?.files);
         if (!files.length) return false;
         event.preventDefault();
@@ -368,15 +393,11 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
     editorRef.current = editor;
   }, [editor]);
 
-  // Update the editor content when the documentKey changes (this was the issue with the frontend bug)
   useEffect(() => {
     if (!editor) return;
-
     editor.commands.setContent(content || "", false);
   }, [editor, documentKey]);
 
-  // `editable` is only read when the editor is created, so keep it in sync if
-  // the prop flips later (otherwise a "read-only" doc could still be typed in).
   useEffect(() => {
     if (!editor || editor.isEditable === editable) return;
     editor.setEditable(editable, false);
@@ -386,9 +407,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
     setLayout(next);
     try {
       window.localStorage.setItem(LAYOUT_KEY, next);
-    } catch {
-      /* storage unavailable: the choice just won't persist */
-    }
+    } catch {}
   }
 
   if (!editor) return null;
@@ -397,21 +416,30 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
     ? "text-editor read-only"
     : layout === "pageless"
     ? "text-editor pageless"
-    : "text-editor";
+    : "text-editor paged-mode";
 
   return (
     <div className={rootClass}>
       {editable && <Toolbar editor={editor} layout={layout} onLayoutChange={changeLayout} />}
       <div className="page-canvas">
-        <EditorContent editor={editor} className="text-editor-content" />
+        {layout === "pageless" ? (
+          <div className="text-editor-content">
+            <EditorContent editor={editor} />
+          </div>
+        ) : (
+          /* Multi-page container wrapper where CSS/content breaks across pages */
+          <div className="document-pages">
+            <div className="text-editor-content">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
 // Icons (inline SVG, 24x24 grid, Lucide-style strokes)
-// ---------------------------------------------------------------------------
 const ICONS = {
   undo: (<><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>),
   redo: (<><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></>),
@@ -545,14 +573,16 @@ function Toolbar({ editor, layout, onLayoutChange }) {
     else editor.chain().focus().setFontFamily(value).run();
   }
 
+  // Inside Toolbar component, update the line spacing select to include paragraph spacing triggers or choices:
   function changeLineSpacing(e) {
-    // setLineSpacing writes the paragraph/heading attribute (see LineSpacing above).
-    editor.chain().focus().setLineSpacing(e.target.value).run();
-  }
-
-  function changeParagraphSpacing(type) {
-    const amount = type === "add" ? "12px" : "0px";
-    editor.chain().focus().setParagraphSpacing({ spaceAfter: amount }).run();
+    const value = e.target.value;
+    if (value === "add-space") {
+      editor.chain().focus().setParagraphSpacing({ spaceAfter: "12px" }).run();
+    } else if (value === "remove-space") {
+      editor.chain().focus().setParagraphSpacing({ spaceAfter: "0px" }).run();
+    } else {
+      editor.chain().focus().setLineSpacing(value).run();
+    }
   }
 
   function applyFontSize(n, refocus = true) {
@@ -639,23 +669,18 @@ function Toolbar({ editor, layout, onLayoutChange }) {
               value={s.lineHeight}
               onChange={changeLineSpacing}
             >
-              {LINE_HEIGHTS.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-              {!knownLineHeight && <option value={s.lineHeight}>{s.lineHeight}</option>}
+              <optgroup label="Line Spacing">
+                {LINE_HEIGHTS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Paragraph Spacing">
+                <option value="add-space">Add space after paragraph</option>
+                <option value="remove-space">Remove space after paragraph</option>
+              </optgroup>
             </SelectControl>
-            <ToolbarButton
-              icon="plus"
-              title="Add space after paragraph"
-              onClick={() => changeParagraphSpacing("add")}
-            />
-            <ToolbarButton
-              icon="minus"
-              title="Remove space after paragraph"
-              onClick={() => changeParagraphSpacing("remove")}
-            />
           </div>
         </div>
 
@@ -685,7 +710,10 @@ function Toolbar({ editor, layout, onLayoutChange }) {
               title="Strikethrough"
               onClick={() => editor.chain().focus().toggleStrike().run()}
             />
-            
+            <HighlightButton
+              active={s.highlight}
+              onChange={(color) => editor.chain().focus().toggleHighlight({ color }).run()}
+            />
             <ColorButton
               color={s.color}
               onChange={(value) => editor.chain().focus().setColor(value).run()}
@@ -743,6 +771,11 @@ function Toolbar({ editor, layout, onLayoutChange }) {
               icon="link"
               title="Insert link"
               onClick={setLink}
+            />
+            <ToolbarButton
+              icon="page"
+              title="Insert page break"
+              onClick={() => editor.chain().focus().setPageBreak().run()}
             />
             <ImageMenu editor={editor} />
           </div>
@@ -959,6 +992,23 @@ function ImageMenu({ editor }) {
   );
 }
 
+// Highlight button with native color picker overlay
+function HighlightButton({ active, onChange }) {
+  return (
+    <label className="toolbar-btn color-btn" title="Highlight color">
+      <Icon name="highlight" />
+      <span className="color-bar" style={{ backgroundColor: DEFAULT_HIGHLIGHT_COLOR }} />
+      <input
+        type="color"
+        className="color-input"
+        aria-label="Highlight color"
+        value={DEFAULT_HIGHLIGHT_COLOR}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
 // "A" with a color bar under it; the real <input type="color"> sits invisibly
 // on top so a click opens the native picker.
 function ColorButton({ color, onChange }) {
@@ -976,4 +1026,3 @@ function ColorButton({ color, onChange }) {
     </label>
   );
 }
-
