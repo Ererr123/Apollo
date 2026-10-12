@@ -269,7 +269,6 @@ export default function WorldDetailPage({world, onBack}) {
                 className="doc-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                onTitleChange={(newTitle) => setTitle(newTitle)}
               />
               <select
                 className="doc-type-select"
