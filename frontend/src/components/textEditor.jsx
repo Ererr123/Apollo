@@ -8,6 +8,7 @@ import {
 import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import Highlight from "@tiptap/extension-highlight";
 import { TextStyle, LineHeight, FontSize } from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
 import Color from "@tiptap/extension-color";
@@ -69,6 +70,51 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const LAYOUT_KEY = "textEditor.layout"; // remembers pages / pageless per browser
 const MAX_IMAGE_DIMENSION = 1600; // larger uploads are scaled down before embedding
 
+// Custom extension for paragraph spacing (space before and after paragraphs)
+const ParagraphSpacing = Extension.create({
+  name: "paragraphSpacing",
+  addOptions() {
+    return {
+      types: ["paragraph", "heading", "bulletList", "orderedList", "taskList"],
+    };
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          spaceBefore: {
+            default: null,
+            renderHTML: (attributes) => {
+              if (!attributes.spaceBefore) return {};
+              return { style: `margin-top: ${attributes.spaceBefore}` };
+            },
+            parseHTML: (element) => element.style.marginTop || null,
+          },
+          spaceAfter: {
+            default: null,
+            renderHTML: (attributes) => {
+              if (!attributes.spaceAfter) return {};
+              return { style: `margin-bottom: ${attributes.spaceAfter}` };
+            },
+            parseHTML: (element) => element.style.marginBottom || null,
+          },
+        },
+      },
+    ];
+  },
+  addCommands() {
+    return {
+      setParagraphSpacing:
+        (spacing) =>
+        ({ commands }) =>
+          this.options.types.every((type) =>
+            commands.updateAttributes(type, spacing)
+          ),
+    };
+  },
+});
+
 // Okay, so Line Spacing wasn't wporking so I constulted Claude. 
 // It suggested creating a custom extension for line spacing, which is what LineSpacing does.
 const LineSpacing = Extension.create({
@@ -108,18 +154,14 @@ const LineSpacing = Extension.create({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Images
-// Custom inline image node (no extra package). Images sit in the text flow,
-// so the alignment buttons center / right-align them like Docs. Drag the
-// corner handle of a selected image to resize it.
-// ---------------------------------------------------------------------------
+// Custom inline image node with resizable functionality
 function ImageView({ node, selected, updateAttributes, editor }) {
   const imgRef = useRef(null);
   const [liveWidth, setLiveWidth] = useState(null);
   const { src, alt, title, width } = node.attrs;
   const canResize = selected && editor.isEditable;
 
+  // Handle live width updates for resizing the image
   function startResize(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -203,16 +245,16 @@ const InlineImage = Node.create({
 });
 
 //Upload image file to the server and return the URL instead of using a local data URL
-async function uploadImageFile(file, maxDimension = MAX_IMAGE_DIMENSION) {
-  // Optional: compress client-side first to save bandwidth and storage costs
-  const compressedFile = await compressImageIfNeeded(file, maxDimension);
+// async function uploadImageFile(file, maxDimension = MAX_IMAGE_DIMENSION) {
+//   // Optional: compress client-side first to save bandwidth and storage costs
+//   const compressedFile = await compressImageIfNeeded(file, maxDimension);
   
-  const formData = new FormData();
-  formData.append("image", compressedFile);
+//   const formData = new FormData();
+//   formData.append("image", compressedFile);
 
-  const response = await client.uploadImage(formData); // Implement this in your API client
-  return response.url; // Returns e.g. "/uploads/xyz.png" or a CDN URL
-}
+//   const response = await client.uploadImage(formData); // Implement this in your API client
+//   return response.url; // Returns e.g. "/uploads/xyz.png" or a CDN URL
+// }
 
 // Insert image files at `pos` (drops) or at the cursor (toolbar / paste).
 async function insertImageFiles(editor, files, pos = null) {
@@ -278,6 +320,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
       // configured) below, so turn the built-in copies off to avoid duplicates.
       StarterKit.configure({ link: false, underline: false }),
       Underline,
+      Highlight.configure({ multicolor: true }),
       TextStyle,
       FontFamily,
       FontSize,
@@ -292,6 +335,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
         defaultLineHeight: DEFAULT_LINE_HEIGHT
       }),
       LineSpacing,
+      ParagraphSpacing,
       InlineImage,
     ],
     content: content || "",
@@ -377,6 +421,7 @@ const ICONS = {
   italic: (<><path d="M19 4h-9" /><path d="M14 20H5" /><path d="M15 4 9 20" /></>),
   underline: (<><path d="M6 4v6a6 6 0 0 0 12 0V4" /><path d="M4 20h16" /></>),
   strike: (<><path d="M16 4H9a3 3 0 0 0-2.83 4" /><path d="M14 12a4 4 0 0 1 0 8H6" /><path d="M4 12h16" /></>),
+  highlight: (<><path d="m9 11-6 6v3h3l6-6" /><path d="m22 7-4-4-10 10 4 4z" /></>),
   colorA: (<><path d="m6 16 6-12 6 12" /><path d="M8 12h8" /></>),
   alignLeft: (<><path d="M3 6h18" /><path d="M3 12h12" /><path d="M3 18h14" /></>),
   alignCenter: (<><path d="M3 6h18" /><path d="M7 12h10" /><path d="M5 18h14" /></>),
@@ -412,9 +457,7 @@ function Icon({ name, size = 18, className }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Toolbar
-// ---------------------------------------------------------------------------
+// Toolbar component for the text editor
 
 // Fonts parsed back from HTML lose their quotes, so compare without them.
 const normFont = (v) => (v || "").replace(/['"\s]/g, "").toLowerCase();
@@ -462,6 +505,7 @@ function Toolbar({ editor, layout, onLayoutChange }) {
         heading,
         fontFamily: textStyle.fontFamily || "",
         fontSize: toPt(textStyle.fontSize) ?? HEADING_FONT_SIZES[heading] ?? DEFAULT_FONT_SIZE,
+        highlight: editor.isActive("highlight"),
         color: textStyle.color || "",
         lineHeight: block.lineHeight || DEFAULT_LINE_HEIGHT,
         align: block.textAlign || "left",
@@ -504,6 +548,11 @@ function Toolbar({ editor, layout, onLayoutChange }) {
   function changeLineSpacing(e) {
     // setLineSpacing writes the paragraph/heading attribute (see LineSpacing above).
     editor.chain().focus().setLineSpacing(e.target.value).run();
+  }
+
+  function changeParagraphSpacing(type) {
+    const amount = type === "add" ? "12px" : "0px";
+    editor.chain().focus().setParagraphSpacing({ spaceAfter: amount }).run();
   }
 
   function applyFontSize(n, refocus = true) {
@@ -597,6 +646,16 @@ function Toolbar({ editor, layout, onLayoutChange }) {
               ))}
               {!knownLineHeight && <option value={s.lineHeight}>{s.lineHeight}</option>}
             </SelectControl>
+            <ToolbarButton
+              icon="plus"
+              title="Add space after paragraph"
+              onClick={() => changeParagraphSpacing("add")}
+            />
+            <ToolbarButton
+              icon="minus"
+              title="Remove space after paragraph"
+              onClick={() => changeParagraphSpacing("remove")}
+            />
           </div>
         </div>
 
@@ -626,6 +685,7 @@ function Toolbar({ editor, layout, onLayoutChange }) {
               title="Strikethrough"
               onClick={() => editor.chain().focus().toggleStrike().run()}
             />
+            
             <ColorButton
               color={s.color}
               onChange={(value) => editor.chain().focus().setColor(value).run()}

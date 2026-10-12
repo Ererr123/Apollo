@@ -325,6 +325,12 @@
   background-color: var(--te-canvas-bg);
 }
 
+/* Non-pageless text editor content layout*/
+.text-editor:not(.pageless) .text-editor-content {
+  display: flex;
+  flex-direction: column;
+}
+
 /* page: 8.5in wide, 1in margins, 11in tall  */
 
 .text-editor-content {
