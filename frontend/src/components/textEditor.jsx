@@ -18,8 +18,12 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { useEffect, useRef, useState } from "react";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { client } from "../api/client.js";
 import "./textEditor.css";
 
+// Constants for font families, line heights, and font sizes
 const FONT_FAMILIES = [
   {label: "Arial", value: "Arial, sans-serif"},
   {label: "Serif", value: "Georgia, serif"},
@@ -141,6 +145,254 @@ const PageBreak = Node.create({
     };
   },
 });
+
+// Pagination plugin: measures the document and inserts spacers to make the content fit on pages. 
+// The spacers are decoration widgets, not real nodes, so they don't affect the document model or the undo history. 
+// The plugin also reports how many pages are needed via the onPages callback.
+const paginationKey = new PluginKey("tePagination");
+const SPLITTABLE = new Set(["bulletList", "orderedList", "taskList", "listItem", "taskItem"]);
+const FIT_TOLERANCE = 0.5; // px
+
+// Page size comes from CSS (--te-page-h / --te-margin-y / --te-page-gap) so the
+// sheets and the maths can't drift apart. Null = don't paginate (small screens).
+function readPageGeometry(dom) {
+  if (window.matchMedia?.("(max-width: 800px)").matches) return null;
+  const style = window.getComputedStyle(dom);
+  const px = (name, fallback) => {
+    const n = parseFloat(style.getPropertyValue(name));
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const pageHeight = px("--te-page-h", 1056);
+  const margin = px("--te-margin-y", 96);
+  const gap = px("--te-page-gap", 24);
+  const content = pageHeight - 2 * margin;
+  return content > 0 ? { period: pageHeight + gap, content } : null;
+}
+
+// Walks the document with the spacers hidden ("natural" layout) and returns
+// where spacers are needed: [{ pos, h }], plus the number of pages.
+function computeBreaks(view, { period, content }) {
+  const base = view.dom.getBoundingClientRect().top;
+  const breaks = [];
+  let shift = 0; // total spacer height added so far
+  let page = 0; // page the next block lands on
+  let placed = false; // is there anything on the current page yet?
+  let forceBreak = false; // a page-break node was just passed
+  let lastBottom = 0;
+
+  const limit = () => page * period + content + FIT_TOLERANCE;
+
+  function measure(pos) {
+    const el = view.nodeDOM(pos);
+    if (!(el instanceof HTMLElement)) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      top: rect.top - base,
+      bottom: rect.bottom - base,
+      marginBottom: parseFloat(window.getComputedStyle(el).marginBottom) || 0,
+    };
+  }
+
+  // Spacer in front of `pos`: lands the next block exactly on the next page's
+  // first line. prevEnd = where the previous sibling's margin box ends.
+  function breakBefore(pos, prevEnd) {
+    const h = Math.max(0, Math.round((page + 1) * period - (prevEnd + shift)));
+    breaks.push({ pos, h });
+    shift += h;
+    page += 1;
+    placed = false;
+  }
+
+  function visit(node, pos, prevEnd) {
+    const m = measure(pos);
+    if (!m) return prevEnd;
+    const end = m.bottom + m.marginBottom;
+
+    if (forceBreak) {
+      forceBreak = false;
+      breakBefore(pos, prevEnd);
+    }
+    if (node.type.name === "pageBreak") {
+      placed = true;
+      forceBreak = true;
+      lastBottom = Math.max(lastBottom, m.bottom);
+      return end;
+    }
+
+    const fits = () => m.bottom + shift <= limit();
+    if (fits()) {
+      placed = true;
+      lastBottom = Math.max(lastBottom, m.bottom);
+      return end;
+    }
+
+    // Doesn't fit on this page. Lists can be split between their items, so if
+    // at least the first item fits we keep the list here and split inside it.
+    const splittable = SPLITTABLE.has(node.type.name) && node.childCount > 1;
+    if (placed) {
+      const first = splittable ? measure(pos + 1) : null;
+      const firstFits = first && first.bottom + shift <= limit();
+      if (!firstFits) breakBefore(pos, prevEnd);
+    }
+    if (fits()) {
+      placed = true;
+      lastBottom = Math.max(lastBottom, m.bottom);
+      return end;
+    }
+    if (splittable) {
+      let prev = m.top;
+      node.forEach((child, offset) => {
+        prev = visit(child, pos + 1 + offset, prev);
+      });
+      lastBottom = Math.max(lastBottom, m.bottom);
+      return end;
+    }
+
+    // Taller than a whole page and not splittable: let it run over, then carry
+    // on from the page where it ends.
+    placed = true;
+    lastBottom = Math.max(lastBottom, m.bottom);
+    const finalBottom = m.bottom + shift;
+    if (finalBottom > limit()) page = Math.max(page, Math.floor(finalBottom / period));
+    return end;
+  }
+
+  let prevEnd = 0;
+  view.state.doc.forEach((node, offset) => {
+    prevEnd = visit(node, offset, prevEnd);
+  });
+  const pages = Math.max(page + 1, Math.floor(Math.max(0, lastBottom + shift - 1) / period) + 1);
+  return { breaks, pages };
+}
+
+const breaksSignature = (breaks) => breaks.map((b) => `${b.pos}:${b.h}`).join(",");
+
+function makeSpacer(height) {
+  const el = document.createElement("div");
+  el.className = "te-page-spacer";
+  el.style.height = `${height}px`;
+  el.setAttribute("contenteditable", "false");
+  el.setAttribute("aria-hidden", "true");
+  return el;
+}
+
+const Pagination = Extension.create({
+  name: "pagination",
+
+  addOptions() {
+    return {
+      isEnabled: () => true, // paginate only in "pages" layout
+      onPages: null, // (count) => void, drives how many sheets are drawn
+    };
+  },
+
+  addProseMirrorPlugins() {
+    const options = this.options;
+    return [
+      new Plugin({
+        key: paginationKey,
+        state: {
+          init: () => ({ breaks: [], pages: 1, sig: "", decos: DecorationSet.empty }),
+          apply(tr, value) {
+            const meta = tr.getMeta(paginationKey);
+            if (meta?.breaks) {
+              return {
+                breaks: meta.breaks,
+                pages: meta.pages,
+                sig: breaksSignature(meta.breaks),
+                decos: DecorationSet.create(
+                  tr.doc,
+                  meta.breaks.map((b) =>
+                    Decoration.widget(b.pos, () => makeSpacer(b.h), {
+                      side: -1,
+                      key: `pg-${b.pos}-${b.h}`,
+                      ignoreSelection: true,
+                    })
+                  )
+                ),
+              };
+            }
+            if (tr.docChanged) {
+              // keep the spacers glued to their blocks until the next measurement
+              const breaks = value.breaks.map((b) => ({ ...b, pos: tr.mapping.map(b.pos) }));
+              return {
+                ...value,
+                breaks,
+                sig: breaksSignature(breaks),
+                decos: value.decos.map(tr.mapping, tr.doc),
+              };
+            }
+            return value;
+          },
+        },
+        props: {
+          decorations: (state) => paginationKey.getState(state).decos,
+        },
+        view(view) {
+          let frame = 0;
+          let destroyed = false;
+          let lastPages = null;
+
+          const run = () => {
+            frame = 0;
+            if (destroyed || view.isDestroyed) return;
+            const geometry = options.isEnabled?.() === false ? null : readPageGeometry(view.dom);
+            let result = { breaks: [], pages: 1 };
+            if (geometry) {
+              // hide the spacers while measuring so we see the natural layout
+              const host = view.dom.parentElement;
+              host?.classList.add("te-measuring");
+              try {
+                result = computeBreaks(view, geometry);
+              } finally {
+                host?.classList.remove("te-measuring");
+              }
+            }
+            const state = paginationKey.getState(view.state);
+            if (breaksSignature(result.breaks) !== state.sig || result.pages !== state.pages) {
+              view.dispatch(
+                view.state.tr.setMeta(paginationKey, result).setMeta("addToHistory", false)
+              );
+            }
+            if (result.pages !== lastPages) {
+              lastPages = result.pages;
+              options.onPages?.(result.pages);
+            }
+          };
+          const schedule = () => {
+            if (!frame && !destroyed) frame = requestAnimationFrame(run);
+          };
+
+          // edits are covered by update(); resizes, late-loading fonts and
+          // images change the layout without a transaction
+          const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+          observer?.observe(view.dom);
+          view.dom.addEventListener("load", schedule, true);
+          document.fonts?.ready?.then(schedule);
+          schedule();
+
+          return {
+            update: schedule,
+            destroy() {
+              destroyed = true;
+              cancelAnimationFrame(frame);
+              observer?.disconnect();
+              view.dom.removeEventListener("load", schedule, true);
+            },
+          };
+        },
+      }),
+    ];
+  },
+});
+
+// Ask the plugin to re-measure (e.g. after switching between pages / pageless).
+function requestPagination(editor) {
+  if (!editor?.view || editor.isDestroyed) return;
+  editor.view.dispatch(
+    editor.state.tr.setMeta(paginationKey, { refresh: true }).setMeta("addToHistory", false)
+  );
+}
 
 // Okay, so Line Spacing wasn't wporking so I constulted Claude. 
 // It suggested creating a custom extension for line spacing, which is what LineSpacing does.
@@ -337,10 +589,12 @@ export default function TextEditor({
 }
 
 // EditorInstance component handles the actual editor logic and rendering.
-// EditorInstance component handles the actual editor logic and rendering.
 function EditorInstance({content, onChange, editable = true, documentKey}) {
   const editorRef = useRef(null);
   const [layout, setLayout] = useState(readStoredLayout);
+  const [pageCount, setPageCount] = useState(1); // sheets to draw in "pages" layout
+  const pagedRef = useRef(false); // read by the pagination plugin
+  pagedRef.current = editable && layout === "pages";
 
   const editor = useEditor({
     extensions: [
@@ -364,6 +618,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
       ParagraphSpacing,
       PageBreak,
       InlineImage,
+      Pagination.configure({ isEnabled: () => pagedRef.current, onPages: setPageCount }),
     ],
     content: content || "",
     editable,
@@ -396,13 +651,20 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
 
   useEffect(() => {
     if (!editor) return;
-    editor.commands.setContent(content || "", false);
+    // Loading a document must not become an undo step: otherwise Ctrl+Z right after
+    // opening document B brings back document A's text (and fires onChange with it).
+    editor.chain().setMeta("addToHistory", false).setContent(content || "", false).run();
   }, [editor, documentKey]);
 
   useEffect(() => {
     if (!editor || editor.isEditable === editable) return;
     editor.setEditable(editable, false);
   }, [editor, editable]);
+
+  // re-measure when switching between pages / pageless
+  useEffect(() => {
+    requestPagination(editor);
+  }, [editor, editable, layout]);
 
   function changeLayout(next) {
     setLayout(next);
@@ -413,6 +675,7 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
 
   if (!editor) return null;
 
+  const paged = editable && layout === "pages";
   const rootClass = !editable
     ? "text-editor read-only"
     : layout === "pageless"
@@ -423,10 +686,21 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
     <div className={rootClass}>
       {editable && <Toolbar editor={editor} layout={layout} onLayoutChange={changeLayout} />}
       <div className="page-canvas">
-        <div className="text-editor-content">
-          <EditorContent editor={editor} />
+        {/* The paper: white sheets (decoration only) behind the real editor */}
+        <div className="te-paper" style={{ "--te-pages": pageCount }}>
+          {paged && (
+            <div className="te-sheets" aria-hidden="true">
+              {Array.from({ length: pageCount }, (_, i) => (
+                <div key={i} className="te-sheet" />
+              ))}
+            </div>
+          )}
+          <div className="text-editor-content">
+            <EditorContent editor={editor} className="te-host" />
+          </div>
         </div>
       </div>
+      {editable && <StatusBar editor={editor} pages={paged ? pageCount : null} />}
     </div>
   );
 }
@@ -871,7 +1145,10 @@ function FontSizeControl({ size, onStep, onCommit, onCancel }) {
       onStep(e.key === "ArrowUp" ? 1 : -1, false); // keep focus in the box
     }
   }
-
+  
+  // The input is a controlled component, but we don't want to update the value
+  // on every keystroke (that would make it hard to type a decimal number). So
+  // we keep a draft state that is only committed on blur or Enter.
   return (
     <div className="font-size-control" role="group" aria-label="Font size">
       <button
@@ -946,6 +1223,8 @@ function ImageMenu({ editor }) {
     editor.chain().focus().setImage({ src: url.trim() }).run();
   }
 
+  // The menu is a simple <div> with buttons, not a real <menu> or <ul>, so we don't need to manage focus or keyboard navigation. 
+  // The buttons are just for mouse users; keyboard users can paste or drop an image, or use the "Insert link" button to add an image by URL.
   return (
     <div className="toolbar-menu-wrap" ref={wrapRef}>
       <ToolbarButton
@@ -1016,5 +1295,63 @@ function ColorButton({ color, onChange }) {
         onChange={(e) => onChange(e.target.value)}
       />
     </label>
+  );
+}
+
+// Count words and characters in a range of the document. Spaces between blocks
+// count as spaces so words in different paragraphs don't merge. Returns an object
+// with { words, chars, charsNoSpaces }.
+function countRange(doc, from, to) {
+  // block boundaries count as spaces so words in different paragraphs don't merge
+  const spaced = doc.textBetween(from, to, " ", " ").trim();
+  const raw = doc.textBetween(from, to, "", "");
+  return {
+    words: spaced ? spaced.split(/\s+/).length : 0,
+    chars: raw.length,
+    charsNoSpaces: raw.replace(/\s/g, "").length,
+  };
+}
+
+const formatNumber = (n) => new Intl.NumberFormat().format(n);
+const plural = (n, word) => `${formatNumber(n)} ${word}${n === 1 ? "" : "s"}`;
+
+// Shows totals, and "x of y" while text is selected (like Docs).
+function StatusBar({ editor, pages }) {
+  const cache = useRef({ doc: null, totals: null }); // totals only change when the doc does
+  const stats = useEditorState({
+    editor,
+    selector: ({ editor }) => {
+      const { doc, selection } = editor.state;
+      if (cache.current.doc !== doc) {
+        cache.current = { doc, totals: countRange(doc, 0, doc.content.size) };
+      }
+      let selected = null;
+      if (!selection.empty) {
+        const part = countRange(doc, selection.from, selection.to);
+        if (part.chars > 0) selected = part;
+      }
+      return { ...cache.current.totals, selected };
+    },
+  });
+
+  const { words, chars, charsNoSpaces, selected } = stats;
+  return (
+    <div className="te-status">
+      <span>
+        {selected ? `${formatNumber(selected.words)} of ${plural(words, "word")}` : plural(words, "word")}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span title={`${plural(selected ? selected.charsNoSpaces : charsNoSpaces, "character")} without spaces`}>
+        {selected
+          ? `${formatNumber(selected.chars)} of ${plural(chars, "character")}`
+          : plural(chars, "character")}
+      </span>
+      {pages !== null && (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>{plural(pages, "page")}</span>
+        </>
+      )}
+    </div>
   );
 }
