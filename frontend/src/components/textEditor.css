@@ -588,6 +588,12 @@
   }
 
   .text-editor-content {
+    width: 100%;
+    min-height: 60vh;
+    padding: 24px 16px;
+  }
+
+  .text-editor-content {
     flex-basis: 100%;
     min-height: 70vh;
     padding: 40px 24px;
