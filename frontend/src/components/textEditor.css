@@ -324,30 +324,37 @@
   background-color: var(--te-canvas-bg);
 }
 
-/* Paged Mode: multi-page sheet layout */
-.text-editor:not(.pageless) .page-canvas {
+/* Paged Mode Canvas */
+.text-editor.paged-model .page-canvas,
+.text-editor.paged-mode .page-canvas {
   background-color: #f1f3f4;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
-.text-editor:not(.pageless) .text-editor-content {
-  flex: 0 0 auto;
-  width: 816px;
-  min-height: 1056px;
+/* Fixed sheet container with clean scrolling */
+.text-editor.paged-mode .text-editor-content {
+  width: 816px; /* Standard 8.5in letter width */
+  min-height: 1056px; /* Standard 11in letter height */
   box-sizing: border-box;
-  padding: 96px;
+  padding: 96px; /* 1in margins */
   background-color: #ffffff;
   box-shadow:
     0 0 0 1px #dadce0,
     0 1px 3px rgba(60, 64, 67, 0.15);
-  margin-bottom: 0;
+  position: relative;
+  margin-bottom: 24px; /* Creates the tiny space between pages */
 }
 
-/* Explicit or visual page break representation in paged mode */
-.text-editor:not(.pageless) .text-editor-content .page-break {
+/* Page Break node styling acting as a visual sheet separator */
+.text-editor.paged-mode .text-editor-content .page-break {
   height: 24px;
-  margin: 24px -96px;
-  background-color: #f1f3f4;
+  margin: 24px -96px; /* Bleeds out to the edges of the page */
+  background-color: #f1f3f4; /* Matches the canvas gap background */
   border-top: 1px solid #dadce0;
   border-bottom: 1px solid #dadce0;
   position: relative;
@@ -355,7 +362,7 @@
   break-after: page;
 }
 
-.text-editor:not(.pageless) .text-editor-content .page-break::after {
+.text-editor.paged-mode .text-editor-content .page-break::after {
   content: "Page Break";
   position: absolute;
   right: 24px;
@@ -365,6 +372,10 @@
   color: #747775;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  background-color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #dadce0;
 }
 
 /* Pageless: one continuous white surface, no page edges */

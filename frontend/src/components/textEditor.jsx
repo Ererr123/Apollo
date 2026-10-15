@@ -337,6 +337,7 @@ export default function TextEditor({
 }
 
 // EditorInstance component handles the actual editor logic and rendering.
+// EditorInstance component handles the actual editor logic and rendering.
 function EditorInstance({content, onChange, editable = true, documentKey}) {
   const editorRef = useRef(null);
   const [layout, setLayout] = useState(readStoredLayout);
@@ -422,18 +423,9 @@ function EditorInstance({content, onChange, editable = true, documentKey}) {
     <div className={rootClass}>
       {editable && <Toolbar editor={editor} layout={layout} onLayoutChange={changeLayout} />}
       <div className="page-canvas">
-        {layout === "pageless" ? (
-          <div className="text-editor-content">
-            <EditorContent editor={editor} />
-          </div>
-        ) : (
-          /* Multi-page container wrapper where CSS/content breaks across pages */
-          <div className="document-pages">
-            <div className="text-editor-content">
-              <EditorContent editor={editor} />
-            </div>
-          </div>
-        )}
+        <div className="text-editor-content">
+          <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   );
